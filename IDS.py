@@ -18,19 +18,19 @@ from sklearn.metrics import confusion_matrix, classification_report
 
 print("Loading datasets...")
 
-# Load the three CSV files
+
 normal_data = pd.read_csv('Normal_data.csv')
 ovs_data = pd.read_csv('OVS.csv')
 metasploitable_data = pd.read_csv('metasploitable-2.csv')
 
-# Combine all datasets
+
 data = pd.concat([normal_data, ovs_data, metasploitable_data], ignore_index=True)
 
-# Use the existing 'Label' column (this is the correct attack type!)
-# CRITICAL: Strip all whitespace from labels first!
+
+
 data['label'] = data['Label'].str.strip()
 
-# Standardize label capitalization for consistency
+
 label_mapping = {
     'ddos': 'DDoS',
     'DDOS': 'DDoS',
@@ -48,10 +48,10 @@ label_mapping = {
     'u2r': 'U2R'
 }
 
-# Apply mapping
+
 data['label'] = data['label'].replace(label_mapping)
 
-# Drop the old 'Label' column to avoid confusion
+
 data = data.drop('Label', axis=1)
 
 print(f"\nDataset shape: {data.shape}")
@@ -64,24 +64,24 @@ print("\nExpected: 8 classes (DDoS, Probe, Normal, DoS, BFA, Web-Attack, BOTNET,
 print("\n" + "="*50)
 print("Data Cleaning...")
 
-# Remove any unnamed columns or index columns
+
 data = data.loc[:, ~data.columns.str.contains('^Unnamed')]
 
-# Handle missing values
+
 print(f"Missing values before cleaning: {data.isnull().sum().sum()}")
 data = data.dropna()
 
-# Remove infinite values
+
 data = data.replace([np.inf, -np.inf], np.nan)
 data = data.dropna()
 
 print(f"Dataset shape after cleaning: {data.shape}")
 
-# Separate features and labels
+
 X = data.drop('label', axis=1)
 y = data['label']
 
-# Convert all features to numeric
+
 X = X.apply(pd.to_numeric, errors='coerce')
 X = X.fillna(0)
 
@@ -91,21 +91,21 @@ print(f"Feature names: {list(X.columns)}")
 print("\n" + "="*50)
 print("Feature Selection (Top 6 features)...")
 
-# Encode labels for feature selection
+
 label_encoder = LabelEncoder()
 y_encoded = label_encoder.fit_transform(y)
 
-# OPTION 1: Use paper's exact 6 features (RECOMMENDED)
+
 paper_features = ['Bwd Header Len', 'Flow Duration', 'Fwd Header Len',
                   'Flow Byts/s', 'Pkt Len Std', 'Pkt Size Avg']
 
-# Check if all paper features exist
+
 if all(feat in X.columns for feat in paper_features):
     print("Using paper's exact 6 features")
     X_6 = X[paper_features].values
     selected_features = paper_features
 else:
-    # OPTION 2: Use automatic feature selection
+    
     print("Paper features not all available, using automatic selection")
     selector = SelectKBest(f_classif, k=6)
     X_6 = selector.fit_transform(X, y_encoded)
@@ -114,7 +114,7 @@ else:
 
 print(f"Selected features: {selected_features}")
 
-# Get feature scores (only if we used automatic selection)
+
 if 'selector' in locals():
     feature_scores = pd.DataFrame({
         'Feature': X.columns,
@@ -132,7 +132,7 @@ print("Standardizing features...")
 scaler = StandardScaler()
 X_6_scaled = scaler.fit_transform(X_6)
 
-# One-hot encode labels
+
 y_categorical = to_categorical(y_encoded)
 num_classes = y_categorical.shape[1]
 
@@ -171,7 +171,7 @@ class PositionalEncoding(tf.keras.layers.Layer):
 
 def transformer_encoder_block(x, num_heads, d_model, dff, dropout_rate=0.1):
     """Transformer encoder block with proper residual connections"""
-    # Multi-head attention
+   
     attn_output = MultiHeadAttention(
         num_heads=num_heads,
         key_dim=d_model // num_heads
@@ -179,7 +179,7 @@ def transformer_encoder_block(x, num_heads, d_model, dff, dropout_rate=0.1):
     attn_output = Dropout(dropout_rate)(attn_output)
     out1 = LayerNormalization(epsilon=1e-6)(Add()([x, attn_output]))
 
-    # Feed-forward network
+    
     ffn_output = Dense(dff, activation='relu')(out1)
     ffn_output = Dense(d_model)(ffn_output)
     ffn_output = Dropout(dropout_rate)(ffn_output)
@@ -194,24 +194,24 @@ def build_transformer_model(input_shape, num_classes,
     """Build transformer model for SDN intrusion detection"""
     inputs = Input(shape=input_shape)
 
-    # If input is 1D, expand to 2D
+    
     if len(input_shape) == 1:
         x = tf.expand_dims(inputs, axis=-1)
     else:
         x = inputs
 
-    # Initial projection to d_model dimension
+    
     x = Dense(d_model)(x)
 
-    # Add positional encoding
+    
     x = PositionalEncoding(d_model)(x)
     x = Dropout(dropout_rate)(x)
 
-    # Stack transformer blocks
+   
     for _ in range(num_transformer_blocks):
         x = transformer_encoder_block(x, num_heads, d_model, dff, dropout_rate)
 
-    # Add Conv1D layers for local pattern extraction
+    
     x = Conv1D(64, kernel_size=3, activation='relu', padding='same')(x)
     x = LayerNormalization(epsilon=1e-6)(x)
     x = Conv1D(128, kernel_size=3, activation='relu', padding='same')(x)
@@ -219,16 +219,16 @@ def build_transformer_model(input_shape, num_classes,
     x = Conv1D(256, kernel_size=3, activation='relu', padding='same')(x)
     x = LayerNormalization(epsilon=1e-6)(x)
 
-    # Global pooling
+    
     x = GlobalAveragePooling1D()(x)
 
-    # Dense layers
+    
     x = Dense(128, activation='relu')(x)
     x = Dropout(dropout_rate)(x)
     x = Dense(64, activation='relu')(x)
     x = Dropout(dropout_rate)(x)
 
-    # Output layer
+    
     outputs = Dense(num_classes, activation='softmax')(x)
 
     model = Model(inputs=inputs, outputs=outputs)
@@ -237,7 +237,7 @@ def build_transformer_model(input_shape, num_classes,
 print("\n" + "="*50)
 print("Preparing data for transformer model...")
 
-# Reshape data to 3D (samples, features, 1)
+
 X_train = X_train_6.reshape((X_train_6.shape[0], X_train_6.shape[1], 1))
 X_test = X_test_6.reshape((X_test_6.shape[0], X_test_6.shape[1], 1))
 
@@ -291,9 +291,7 @@ callbacks = [
     )
 ]
 
-# =============================
-# 14. TRAIN MODEL
-# =============================
+
 print("\n" + "="*50)
 print("Training model...")
 
@@ -315,14 +313,12 @@ print(f"Test Accuracy: {results[1]*100:.2f}%")
 print(f"Test Precision: {results[2]*100:.2f}%")
 print(f"Test Recall: {results[3]*100:.2f}%")
 
-# =============================
-# 16. PREDICTIONS AND METRICS
-# =============================
+
 y_pred = model.predict(X_test)
 y_pred_classes = np.argmax(y_pred, axis=1)
 y_true = np.argmax(y_test_6, axis=1)
 
-# Confusion Matrix
+
 cm = confusion_matrix(y_true, y_pred_classes)
 
 plt.figure(figsize=(10, 8))
@@ -335,7 +331,7 @@ plt.title("Confusion Matrix - Transformer Model (6 features)", fontsize=14)
 plt.tight_layout()
 plt.show()
 
-# Classification Report
+
 print("\n" + "="*50)
 print("Classification Report:")
 print(classification_report(y_true, y_pred_classes,
@@ -344,7 +340,7 @@ print(classification_report(y_true, y_pred_classes,
 
 fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
-# Accuracy
+
 axes[0].plot(history.history['accuracy'], label='Train Accuracy', linewidth=2)
 axes[0].plot(history.history['val_accuracy'], label='Val Accuracy', linewidth=2)
 axes[0].set_xlabel('Epoch', fontsize=12)
@@ -353,7 +349,7 @@ axes[0].set_title('Model Accuracy', fontsize=14)
 axes[0].legend()
 axes[0].grid(True, alpha=0.3)
 
-# Loss
+
 axes[1].plot(history.history['loss'], label='Train Loss', linewidth=2)
 axes[1].plot(history.history['val_loss'], label='Val Loss', linewidth=2)
 axes[1].set_xlabel('Epoch', fontsize=12)
@@ -368,10 +364,10 @@ plt.show()
 print("\n" + "="*50)
 print("Saving model and preprocessing artifacts...")
 
-# Save the model
+
 model.save('sdn_transformer_model_final.h5')
 
-# Save preprocessing objects
+
 import pickle
 
 artifacts = {
@@ -429,24 +425,24 @@ class PositionalEncoding(tf.keras.layers.Layer):
 
 class IDPSConfig:
     """Configuration for IDPS system"""
-    # Model paths
+   
     MODEL_PATH = 'best_transformer_model.h5'
     PREPROCESSING_PATH = 'preprocessing_artifacts.pkl'
 
-    # Mitigation settings
-    DOS_BLOCK_DURATION = 3600  # 1 hour
-    DDOS_BLOCK_DURATION = 7200  # 2 hours
-    PROBE_BLOCK_DURATION = -1  # Permanent (redirect to honeypot)
-    BFA_BLOCK_DURATION = 300   # 5 minutes
-    WEB_ATTACK_BLOCK_DURATION = 1800  # 30 minutes
-    BOTNET_BLOCK_DURATION = -1  # Permanent (quarantine)
-    U2R_BLOCK_DURATION = -1  # Permanent
+   =
+    DOS_BLOCK_DURATION = 3600  
+    DDOS_BLOCK_DURATION = 7200  
+    PROBE_BLOCK_DURATION = -1  
+    BFA_BLOCK_DURATION = 300   
+    WEB_ATTACK_BLOCK_DURATION = 1800  
+    BOTNET_BLOCK_DURATION = -1  
+    U2R_BLOCK_DURATION = -1  
 
-    # Rate limiting
-    DDOS_RATE_LIMIT = 1000  # packets per second
+    
+    DDOS_RATE_LIMIT = 1000  
     NORMAL_RATE_LIMIT = 10000
 
-    # Alert levels
+    
     ALERT_LEVELS = {
         'Normal': 0,
         'DoS': 2,
@@ -455,14 +451,14 @@ class IDPSConfig:
         'BFA': 2,
         'Web-Attack': 2,
         'BOTNET': 3,
-        'U2R': 4  # Critical
+        'U2R': 4  
     }
 
-    # Honeypot settings
+    
     HONEYPOT_IP = '192.168.100.99'
     HONEYPOT_PORT = 8888
 
-    # Quarantine VLAN
+   
     QUARANTINE_VLAN = 999
 
 logging.basicConfig(
@@ -481,11 +477,11 @@ class AttackDetector:
     def __init__(self):
         logger.info("Loading detection model...")
 
-        # Load model with custom objects - matching training code
+       
         custom_objects = {'PositionalEncoding': PositionalEncoding}
         self.model = load_model(IDPSConfig.MODEL_PATH, custom_objects=custom_objects)
 
-        # Load preprocessing artifacts
+        
         with open(IDPSConfig.PREPROCESSING_PATH, 'rb') as f:
             artifacts = pickle.load(f)
             self.scaler = artifacts['scaler']
@@ -497,7 +493,7 @@ class AttackDetector:
 
     def extract_features(self, traffic_data):
         """Extract the 6 features used by the model"""
-        # Ensure we have the right features
+       
         if isinstance(traffic_data, dict):
             features = [traffic_data[feat] for feat in self.selected_features]
         else:
@@ -507,21 +503,21 @@ class AttackDetector:
 
     def predict(self, traffic_data):
         """Predict attack type from traffic data"""
-        # Extract features
+        
         features = self.extract_features(traffic_data)
 
-        # Scale features
+        
         features_scaled = self.scaler.transform(features)
 
-        # Reshape for transformer model (1, 6, 1)
+        
         features_reshaped = features_scaled.reshape(1, 6, 1)
 
-        # Predict
+       
         prediction = self.model.predict(features_reshaped, verbose=0)
         predicted_class = np.argmax(prediction, axis=1)[0]
         confidence = np.max(prediction)
 
-        # Get attack type
+       
         attack_type = self.label_encoder.classes_[predicted_class]
 
         return {
@@ -535,7 +531,7 @@ class MitigationEngine:
     """Applies countermeasures based on attack type"""
 
     def __init__(self):
-        self.active_blocks = {}  # Track blocked IPs
+        self.active_blocks = {}  
         self.attack_stats = {attack: 0 for attack in IDPSConfig.ALERT_LEVELS.keys()}
         logger.info("Mitigation Engine initialized")
 
@@ -545,17 +541,17 @@ class MitigationEngine:
         src_ip = traffic_info.get('src_ip', 'unknown')
         dst_ip = traffic_info.get('dst_ip', 'unknown')
 
-        # Update statistics
+        
         self.attack_stats[attack_type] += 1
 
-        # Get alert level
+       
         alert_level = IDPSConfig.ALERT_LEVELS.get(attack_type, 0)
 
         logger.info(f" Attack Detected: {attack_type} | Source: {src_ip} | "
                    f"Confidence: {detection_result['confidence']:.2%} | "
                    f"Alert Level: {alert_level}")
 
-        # Apply specific countermeasure
+        
         if attack_type == "Normal":
             return self._allow_traffic(traffic_info)
 
@@ -642,7 +638,7 @@ class MitigationEngine:
         self.active_blocks[src_ip] = {
             'attack_type': 'Probe',
             'blocked_at': datetime.now(),
-            'duration': -1  # Permanent redirect
+            'duration': -1  
         }
 
         return {
@@ -693,9 +689,9 @@ class MitigationEngine:
                 'match': {
                     'ipv4_src': src_ip,
                     'eth_type': 0x0800,
-                    'ip_proto': 6  # TCP
+                    'ip_proto': 6  
                 },
-                'actions': ['OUTPUT:CONTROLLER']  # Deep packet inspection
+                'actions': ['OUTPUT:CONTROLLER']  
             },
             'waf_rules': [
                 'block_sql_injection',
@@ -710,7 +706,7 @@ class MitigationEngine:
         self.active_blocks[src_ip] = {
             'attack_type': 'BOTNET',
             'blocked_at': datetime.now(),
-            'duration': -1  # Permanent until cleaned
+            'duration': -1  
         }
 
         return {
@@ -731,16 +727,16 @@ class MitigationEngine:
         self.active_blocks[src_ip] = {
             'attack_type': 'U2R',
             'blocked_at': datetime.now(),
-            'duration': -1  # Permanent
+            'duration': -1  
         }
 
-        # Send critical alert
+       
         self._send_critical_alert(src_ip, traffic_info)
 
         return {
             'action': 'CRITICAL_BLOCK',
             'flow_rule': {
-                'priority': 2000,  # Highest priority
+                'priority': 2000, 
                 'match': {'ipv4_src': src_ip},
                 'actions': ['DROP']
             },
@@ -774,7 +770,7 @@ class MitigationEngine:
             'message': f'Privilege escalation attempt detected from {src_ip}'
         }
         logger.critical(f" CRITICAL ALERT: {alert}")
-        # In production: send email, SMS, push notification, etc.
+       
 
     def get_statistics(self):
         """Get attack statistics"""
@@ -797,8 +793,7 @@ class SDNController:
     def install_flow_rule(self, flow_rule):
         """Install OpenFlow rule on SDN switches"""
 
-        # In production, this would use actual OpenFlow/REST API
-        # For now, we simulate it
+       
 
         rule_id = len(self.installed_rules) + 1
         flow_rule['rule_id'] = rule_id
@@ -849,12 +844,12 @@ class IDPS:
 
         self.total_processed += 1
 
-        # Step 1: Detect attack
+        
         detection_result = self.detector.predict(traffic_data)
         attack_type = detection_result['attack_type']
         confidence = detection_result['confidence']
 
-        # Step 2: Apply mitigation if not normal traffic
+        
         if attack_type != "Normal" or confidence < 0.95:
             mitigation_action = self.mitigator.apply_countermeasure(
                 attack_type,
@@ -862,7 +857,7 @@ class IDPS:
                 detection_result
             )
 
-            # Step 3: Install flow rule on SDN controller
+          
             if mitigation_action['action'] != 'ALLOW':
                 rule_id = self.sdn_controller.install_flow_rule(
                     mitigation_action['flow_rule']
@@ -877,7 +872,7 @@ class IDPS:
                 'status': 'MITIGATED'
             }
 
-        # Normal traffic - just log
+        
         return {
             'timestamp': datetime.now().isoformat(),
             'traffic_id': self.total_processed,
@@ -923,11 +918,10 @@ class IDPS:
 def demo_idps():
     """Demonstrate IDPS system with sample traffic"""
 
-    # Initialize IDPS
+    
     idps = IDPS()
 
-    # Sample traffic scenarios with more realistic values
-    # Based on typical network attack patterns
+    
     test_scenarios = [
         {
             'name': 'Normal Traffic',
@@ -1026,7 +1020,7 @@ def demo_idps():
         print(f"  Confidence: {result['detection']['confidence']*100:.2f}%")
         print(f"  Status: {result['status']}")
 
-        # Show top 3 predictions
+        
         probs = result['detection']['probabilities']
         top_3 = sorted(probs.items(), key=lambda x: x[1], reverse=True)[:3]
         print(f"\n  Top 3 Predictions:")
@@ -1039,7 +1033,7 @@ def demo_idps():
 
         time.sleep(1)
 
-    # Show final dashboard
+
     idps.print_dashboard()
 
     print("\n Demo completed!")
